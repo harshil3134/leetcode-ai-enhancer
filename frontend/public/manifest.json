@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "LeadCode AI Enhancer",
+  "version": "1.0",
+  "description": "Helps users solve LeetCode problems with hints and guidance.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icons/icon48.png"
+  },
+  "permissions": ["storage", "scripting", "tabs", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/ContentScript.js"]
+    }
+  ]
+}
