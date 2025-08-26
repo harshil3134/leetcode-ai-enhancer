@@ -82,6 +82,24 @@ observer.observe(document.body, {
   subtree: true
 });
 
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+console.log("📨 Message received in content script:", request);
+  // Wait a bit for page to settle
+  if(request.type=="GETDATA")
+  {
+ initializeDetector().then(result => {
+    console.log("GETDATA Final result:", result);
+    sendResponse({ success: true, data: { hey: "hey there",result} });
+  }); 
+
+  return true; // Keep channel open
+
+  }
+  // await sleep(1000);
+  
+ 
+})
+
 // Enhanced message listener
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   console.log('📨 Received message:', msg);

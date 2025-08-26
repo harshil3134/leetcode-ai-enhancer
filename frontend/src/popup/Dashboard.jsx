@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 const HINT_LEVELS = {
-  "1": "Conceptual",
+  "1": "Conceptual",  
   "2": "Algorithm/Data Structure",
   "3": "Step-by-Step Outline",
   "4": "Implementation & Edge Cases"
@@ -12,18 +12,48 @@ const Dashboard = () => {
   const [hints, setHints] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [problemTitle, setProblemTitle] = useState('');
+  const [problem, setProblem] = useState({});
+  const [temp,setTemp]=useState('def')
 
 
-const getContentData = () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+// const getContentData = () => {
+//   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+//     chrome.tabs.sendMessage(
+//       tabs[0].id,
+//       { type: "GET_LEETCODE_DATA" },
+//       (response) => {
+//         if (chrome.runtime.lastError) {
+//           setError("Could not get data from content script.");
+//           console.error("Runtime error:", chrome.runtime.lastError);
+//           return;
+//         }
+
+//         if (!response || !response.success) {
+//           setError("No problem data received.");
+//           console.error("Response error:", response);
+//           return;
+//         }
+
+//         console.log("📥 Got problem data:", response.data);
+
+//         // Now you can use fields inside response.data
+//         setProblemTitle(response.data?.title || "Unknown Problem");
+//         // If hints come from detector, also save them
+//         setHints(response.data?.hints || null);
+//       }
+//     );
+//   });
+// };
+
+const getContent=async ()=>{
+  chrome.tabs.query({active:true,currentWindow:true},(tabs)=>{
     chrome.tabs.sendMessage(
       tabs[0].id,
-      { type: "GET_LEETCODE_DATA" },
-      (response) => {
-        if (chrome.runtime.lastError) {
-          setError("Could not get data from content script.");
+      {type:"GETDATA"},
+      (response)=>{
+         if (chrome.runtime.lastError) {
           console.error("Runtime error:", chrome.runtime.lastError);
+          setError("Could not get data from content script.");
           return;
         }
 
@@ -34,16 +64,14 @@ const getContentData = () => {
         }
 
         console.log("📥 Got problem data:", response.data);
-
-        // Now you can use fields inside response.data
-        setProblemTitle(response.data?.title || "Unknown Problem");
-        // If hints come from detector, also save them
-        setHints(response.data?.hints || null);
+        setTemp(response.data.result.title)
+        setProblem(response.data.result);
+        // setHints(response.data.hints || null);
+        fetchHints()
       }
-    );
-  });
-};
-
+    )
+  })
+}
 
 const sendData = () => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -74,7 +102,7 @@ const sendHint = () => {
   const fetchHints = async () => {
     setLoading(true);
     setError('');
-    sendHint()
+    //sendHint()
     try {
       // Example: Replace with your actual API endpoint and request body
       const response = await fetch('http://localhost:8000/api/hint', {
@@ -82,10 +110,10 @@ const sendHint = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           problem_data: {
-            title: "Add Two Numbers",
-            difficulty: "Medium",
-            description: "You are given two non-empty linked lists representing two non-negative integers. The digits are stored in reverse order, and each of their nodes contains a single digit. Add the two numbers and return the sum as a linked list.",
-            id: "2"
+            title: problem.title,
+            difficulty: problem.difficulty,
+            description:problem.description,
+            id: problem.id
           },
           hint_level: 1
         })
@@ -102,11 +130,12 @@ const sendHint = () => {
   };
 
   return (
-    <div style={{ width: 350, padding: 16, fontFamily: 'sans-serif' }}>
+    <div style={{ width: 500,height:700, padding: 16, fontFamily: 'sans-serif' }}>
       <h2 style={{ margin: '0 0 12px 0', fontSize: 18 }}>LeetCode AI Hints</h2>
-      <div>problem{problemTitle}</div>
+      {/* <div>problem{problemTitle}</div> */}
+      <div>temp {temp}</div>
       <button
-        onClick={getContentData}
+        onClick={getContent}
         style={{
           padding: '8px 16px',
           background: '#1976d2',
@@ -121,11 +150,11 @@ const sendHint = () => {
         {loading ? 'Loading...' : 'Get Hints'}
       </button>
       {error && <div style={{ color: 'red', marginBottom: 8 }}>{error}</div>}
-      {problemTitle && <div style={{ fontWeight: 'bold', marginBottom: 8 }}>{problemTitle}</div>}
+      {problem && <div style={{ fontWeight: 'bold', marginBottom: 8 }}>{problem.title}</div>}
 
       {hints && typeof hints=="object" && (
         <div>
-          <div>{problemTitle}</div>
+          <div>{problem.title}</div>
           {Object.entries(HINT_LEVELS).map(([level, label]) => (
             <div key={level} style={{ marginBottom: 12 }}>
               <div style={{ fontWeight: 'bold', color: '#1976d2' }}>
