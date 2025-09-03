@@ -19,17 +19,20 @@ const HINT_LEVELS = {
 };
 
 
+
 const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
   console.log('problem',problem);
-  const problemdes=f`problem title:${problem.title}
-  problem difficult:${Medium}
-  problem id:${zigzag-conversion}
-  problem description:${problem.problemStatement}`
+  const problemdes= `
+  problem title:${problem.title}
+  problem difficult:${problem.difficulty}
+  problem id:${problem.id}
+  problem description:${problem.description}`
   const [messages, setMessages] = useState([
     { id:0,text:`You are a helpful AI assistant`,sender:'system',timestamp:new Date()},
     { id: 1, text: `Hi! I'm here to help you. What would you like to discuss about this problem?`, sender: 'ai', timestamp: new Date() }
   ]);
-
+  const [inputText, setInputText] = useState('');
+  const [error, setError] = useState('');
   const sendMessage = async() => {
     if (!inputText.trim()) return;
 
@@ -42,20 +45,31 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
 
     setMessages(prev => [...prev, newMessage]);
      try {
+      let textadd=""
       const response = await fetch('http://localhost:8000/api/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-         chat:messages
+         chat:messages,
+         problem:problemdes
         })
       });
       
       if (!response.ok) throw new Error('Failed to fetch hints');
       const data = await response.json();
       console.log("data", data);
+
+      if(!data.explanation||data.explanation==""||data.explanation==null){
+        console.log("exmpty found in if");
+        
+        textadd="Sorry, I couldn't generate a response right now. Please try again, check your question, or reload the extension."
+      } else{
+        textadd=data.explanation
+      }
+
        const aiResponse = {
         id: Date.now() + 1,
-        text: data.res,
+        text: textadd,
         sender: 'ai',
         timestamp: new Date() 
       };

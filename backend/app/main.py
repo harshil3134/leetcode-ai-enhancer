@@ -9,9 +9,11 @@ from typing import Dict
 from langchain_core.output_parsers import PydanticOutputParser,StrOutputParser
 import datetime
 from dotenv import load_dotenv
+from langchain_core.prompts import MessagesPlaceholder
 from fastapi.responses import JSONResponse
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 import json
+import traceback
 
 load_dotenv()
 
@@ -39,6 +41,7 @@ class HintRequest(BaseModel):
 
 class explainRequest(BaseModel):
    chat:list[object]
+   problem:str
 
 
 class HintResponse(BaseModel):
@@ -69,29 +72,49 @@ def health_check():
 async def explain_que(request:explainRequest):
    try:  
          chat=request.chat
+         problem=request.problem
+         print(problem)
+         prompt_text = ("""You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested """)
+         prompt = ChatPromptTemplate([
+         ('system',"""
+         You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested
+         {problem}
+         """),
+         MessagesPlaceholder(variable_name='chat_li'),
+         ('human', '{question}')
+   ])
          chat_li=[]
+         chat_li.append(SystemMessage(content=prompt_text))
          for msg in chat:
             if msg['sender']=="ai":
                chat_li.append(AIMessage(content=msg['text']))
             elif msg['sender']=="user":
                chat_li.append(HumanMessage(content=msg['text']))
-
+         
          print("chat hist",chat_li)
          model = ChatGoogleGenerativeAI(
                   model="gemini-1.5-flash",
-                  temperature=0,
-                  max_output_tokens=100,
+                  temperature=0.3,
+                  max_output_tokens=600,
                   timeout=60,
                   max_retries=2,
          )  
          resp=model.invoke(chat_li)
-         print("resp",resp.content)
          
+         chain=prompt | model 
+         que=chat_li.pop()
+         question=que.content
+         res=chain.invoke({"problem":problem,
+                           "chat_li":chat_li,
+                           "question":question})
+         print("resp",res)
+         print("resp",res.content)
          return ExplainResponse(
-               explanation=resp.content
+               explanation=res.content
             )
    except Exception as e:
       print("An error occurred in /api/explain:", e)
+      traceback.print_exc()
       return JSONResponse(
          status_code=500,
          content={"error": "Failed to generate explanation", "details": str(e)}
@@ -105,7 +128,7 @@ async def generate_hint(request:HintRequest):
 
    try:
       problem=request.problem_data
-      print("problem",problem,flush=True)
+      #print("problem",problem,flush=True)
       prompt_template=ChatPromptTemplate(
       [
       ("system", 
