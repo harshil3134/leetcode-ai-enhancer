@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronDown, ChevronRight, Book, Code, List, Settings, MessageCircle, Send, X, Minimize2 } from 'lucide-react';
 
 // Copper aquamarine dream color palette
@@ -18,13 +18,19 @@ const HINT_LEVELS = {
   "4": { label: "Implementation & Edge Cases", icon: Settings, color: COLORS.warm }
 };
 
-const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
-  const [messages, setMessages] = useState([
-    { id: 1, text: `Hi! I'm here to help you with "${problem.title}". What would you like to discuss about this problem?`, sender: 'ai', timestamp: new Date() }
-  ]);
-  const [inputText, setInputText] = useState('');
 
-  const sendMessage = () => {
+const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
+  console.log('problem',problem);
+  const problemdes=f`problem title:${problem.title}
+  problem difficult:${Medium}
+  problem id:${zigzag-conversion}
+  problem description:${problem.problemStatement}`
+  const [messages, setMessages] = useState([
+    { id:0,text:`You are a helpful AI assistant`,sender:'system',timestamp:new Date()},
+    { id: 1, text: `Hi! I'm here to help you. What would you like to discuss about this problem?`, sender: 'ai', timestamp: new Date() }
+  ]);
+
+  const sendMessage = async() => {
     if (!inputText.trim()) return;
 
     const newMessage = {
@@ -35,17 +41,40 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
     };
 
     setMessages(prev => [...prev, newMessage]);
-
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = {
+     try {
+      const response = await fetch('http://localhost:8000/api/explain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+         chat:messages
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch hints');
+      const data = await response.json();
+      console.log("data", data);
+       const aiResponse = {
         id: Date.now() + 1,
-        text: "I understand your question. Let me help you think through this step by step...",
+        text: data.res,
         sender: 'ai',
-        timestamp: new Date()
+        timestamp: new Date() 
       };
       setMessages(prev => [...prev, aiResponse]);
-    }, 1000);
+      
+    } catch (err) {
+      setError('Could not fetch hints. Please try again.');
+    }
+
+    // Simulate AI response
+    // setTimeout(() => {  
+    //   const aiResponse = {
+    //     id: Date.now() + 1,
+    //     text: "I understand your question. Let me help you think through this step by step...",
+    //     sender: 'ai',
+    //     timestamp: new Date()
+    //   };
+    //   setMessages(prev => [...prev, aiResponse]);
+    // }, 1000);
 
     setInputText('');
   };
@@ -214,6 +243,31 @@ const Dashboard = () => {
     "3": "",
     "4": ""
   });
+useEffect(()=>{
+chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome?.tabs?.sendMessage(
+          tabs[0].id,
+          { type: "GETDATA" },
+          (response) => {
+            if (chrome?.runtime?.lastError) {
+              console.error("Runtime error:", chrome.runtime.lastError);
+              setError("Could not get data from content script.");
+              return;
+            }
+
+            if (!response || !response.success) {
+              setError("No problem data received.");
+              console.error("Response error:", response);
+              return;
+            }
+
+            console.log("📥 Got problem data:", response.data);
+            setProblem(response.data.result);
+          })
+        }
+      )
+},[])
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [problem, setProblem] = useState({
@@ -234,6 +288,7 @@ const Dashboard = () => {
   };
 
   const getContent = async () => {
+    fetchHints();
     if (typeof chrome !== 'undefined') {
       chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
         chrome?.tabs?.sendMessage(
@@ -258,11 +313,9 @@ const Dashboard = () => {
           }
         );
       });
-    } else {
-      // Demo mode
-      fetchHints();
-    }
+    
   };
+}
 
   const fetchHints = async () => {
     setLoading(true);
@@ -302,8 +355,9 @@ const Dashboard = () => {
     }
   };
 
+
   return (
-    <>
+    <div style={{margin:'0px',padding:'0px'}}>
       <div style={{ 
         width: 450, 
         height: 700, 
@@ -359,7 +413,7 @@ const Dashboard = () => {
           )}
 
           <button
-            onClick={getContent}
+            onClick={()=>getContent()}
             style={{
               width: '100%',
               padding: '12px 20px',
@@ -595,7 +649,7 @@ const Dashboard = () => {
       )}
 
       {/* Chat Window */}
-      <ChatWindow
+      <ChatWindow 
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
         onMinimize={() => {
@@ -604,7 +658,7 @@ const Dashboard = () => {
         }}
         problem={problem}
       />
-    </>
+    </div>
   );
 };
 

@@ -3,9 +3,9 @@ import Dashboard from './Dashboard'
 
 const Popup = () => {
   return (
-    <div>
+    <>
       <Dashboard />
-    </div>
+    </>
   )
 }
 
