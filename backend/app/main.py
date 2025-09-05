@@ -42,6 +42,7 @@ class HintRequest(BaseModel):
 class explainRequest(BaseModel):
    chat:list[object]
    problem:str
+   code:str
 
 
 class HintResponse(BaseModel):
@@ -73,18 +74,19 @@ async def explain_que(request:explainRequest):
    try:  
          chat=request.chat
          problem=request.problem
+         code=request.code
          print(problem)
          prompt_text = ("""You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested """)
          prompt = ChatPromptTemplate([
          ('system',"""
-         You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested
+         You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested Talk about code only if user asks  
          {problem}
          """),
          MessagesPlaceholder(variable_name='chat_li'),
-         ('human', '{question}')
+         ('human', '{question} code:{code}')
    ])
          chat_li=[]
-         chat_li.append(SystemMessage(content=prompt_text))
+         # chat_li.append(SystemMessage(content=prompt_text))
          for msg in chat:
             if msg['sender']=="ai":
                chat_li.append(AIMessage(content=msg['text']))
@@ -106,7 +108,8 @@ async def explain_que(request:explainRequest):
          question=que.content
          res=chain.invoke({"problem":problem,
                            "chat_li":chat_li,
-                           "question":question})
+                           "question":question,
+                           "code":code})
          print("resp",res)
          print("resp",res.content)
          return ExplainResponse(

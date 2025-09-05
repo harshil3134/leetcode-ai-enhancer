@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { ChevronDown, ChevronRight, Book, Code, List, Settings, MessageCircle, Send, X, Minimize2 } from 'lucide-react';
 
 // Copper aquamarine dream color palette
@@ -20,19 +21,43 @@ const HINT_LEVELS = {
 
 
 
-const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
-  console.log('problem',problem);
+const ChatWindow = ({ isOpen, onClose, onMinimize, problem,code }) => {
   const problemdes= `
   problem title:${problem.title}
   problem difficult:${problem.difficulty}
   problem id:${problem.id}
-  problem description:${problem.description}`
-  const [messages, setMessages] = useState([
+  problem description:${problem.description .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*$(?:\r\n?|\n)/gm, '')}`
+  const defaultMessages = [
     { id:0,text:`You are a helpful AI assistant`,sender:'system',timestamp:new Date()},
     { id: 1, text: `Hi! I'm here to help you. What would you like to discuss about this problem?`, sender: 'ai', timestamp: new Date() }
-  ]);
+  ];
+  const [messages, setMessages] = useState(() => {
+    const saved = localStorage.getItem('leetcode_ai_chat');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Restore Date objects
+        return parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+      } catch {
+        return defaultMessages;
+      }
+    }
+    return defaultMessages;
+  });
+
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState('');
+  useEffect(() => {
+    localStorage.setItem('leetcode_ai_chat', JSON.stringify(messages));
+  }, [messages]);
+
+  const clearChat = () => {
+    setMessages(defaultMessages);
+    localStorage.removeItem('leetcode_ai_chat');
+  };
+
   const sendMessage = async() => {
     if (!inputText.trim()) return;
 
@@ -42,7 +67,8 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
       sender: 'user',
       timestamp: new Date()
     };
-
+     setInputText('');
+    const updatedMessages=[...messages,newMessage]
     setMessages(prev => [...prev, newMessage]);
      try {
       let textadd=""
@@ -50,8 +76,9 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-         chat:messages,
-         problem:problemdes
+         chat:updatedMessages,
+         problem:problemdes,
+         code:code
         })
       });
       
@@ -90,7 +117,7 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
     //   setMessages(prev => [...prev, aiResponse]);
     // }, 1000);
 
-    setInputText('');
+   
   };
 
   if (!isOpen) return null;
@@ -132,6 +159,24 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
             <p style={{ margin: 0, fontSize: 12, opacity: 0.8 }}>Problem: {problem.title}</p>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to clear the chat?')) {
+                  clearChat();
+                }
+              }}
+              style={{
+                background: COLORS.primary,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                padding: '6px 14px',
+                cursor: 'pointer',
+                fontSize: 13
+              }}
+            >
+              Clear Chat
+            </button>
             <button
               onClick={onMinimize}
               style={{
@@ -178,16 +223,37 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem }) => {
                 maxWidth: '80%'
               }}
             >
-              <div style={{
-                background: message.sender === 'user' ? COLORS.accent : 'rgba(255,255,255,0.9)',
-                color: message.sender === 'user' ? '#fff' : '#333',
-                padding: '12px 16px',
-                borderRadius: message.sender === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                fontSize: 14,
-                lineHeight: 1.4
-              }}>
-                {message.text}
-              </div>
+           <div style={{
+  background: message.sender === 'user' ? COLORS.accent : 'rgba(255,255,255,0.9)',
+  color: message.sender === 'user' ? '#fff' : '#333',
+  padding: '12px 16px',
+  borderRadius: message.sender === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+  fontSize: 14,
+  lineHeight: 1.4,
+  maxWidth: '80vw',           // limit width
+  overflowX: 'auto',          // allow horizontal scroll
+  wordBreak: 'break-word',    // break long words
+}}>
+  {message.sender === 'ai' ? (
+    <ReactMarkdown
+      components={{
+        code({node, inline, className, children, ...props}) {
+          return !inline ? (
+            <pre style={{overflowX: 'auto', margin: 0}}>
+              <code className={className} {...props}>{children}</code>
+            </pre>
+          ) : (
+            <code className={className} {...props}>{children}</code>
+          );
+        }
+      }}
+    >
+      {message.text}
+    </ReactMarkdown>
+  ) : (
+    message.text
+  )}
+</div>
               <div style={{
                 fontSize: 10,
                 opacity: 0.6,
@@ -277,6 +343,8 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
 
             console.log("📥 Got problem data:", response.data);
             setProblem(response.data.result);
+             console.log("code",response?.data?.result?.code)
+            setCode(response?.data?.result?.code)
           })
         }
       )
@@ -287,12 +355,16 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
   const [problem, setProblem] = useState({
     title: "",
     difficulty: "",
-    description: ""
+    description: "",
   });
+  const [code,setCode]=useState("")
   const [showDesc, setShowDesc] = useState(false);
   const [expandedHints, setExpandedHints] = useState({});
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMinimized, setChatMinimized] = useState(false);
+  // useEffect(()=>{
+  // print("printing code ",code)
+  // },[code])
 
   const toggleHint = (level) => {
     setExpandedHints(prev => ({
@@ -321,8 +393,9 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
               return;
             }
 
-            console.log("📥 Got problem data:", response.data);
-            setProblem(response.data.result);
+            console.log("📥 Got problem data getCon:", response.data);
+            setProblem(response?.data?.result);
+            setCode(response?.data?.result?.code)
             fetchHints();
           }
         );
@@ -663,7 +736,7 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
       )}
 
       {/* Chat Window */}
-      <ChatWindow 
+      < ChatWindow 
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
         onMinimize={() => {
@@ -671,6 +744,7 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
           setChatMinimized(true);
         }}
         problem={problem}
+        code={code}
       />
     </div>
   );

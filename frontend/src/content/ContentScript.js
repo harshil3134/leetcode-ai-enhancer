@@ -89,7 +89,7 @@ console.log("📨 Message received in content script:", request);
   {
  initializeDetector().then(result => {
     console.log("GETDATA Final result:", result);
-    sendResponse({ success: true, data: { hey: "hey there",result} });
+    sendResponse({ success: true, data: { result} });
   }); 
 
   return true; // Keep channel open

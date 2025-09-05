@@ -4,9 +4,9 @@ export class ProblemDetector {
     // Get problem ID from URL
     const match = window.location.pathname.match(/\/problems\/([^\/]+)/);
     if (!match) return null;
-    
     const problemSlug = match[1];
-    
+    const codeselector=document.querySelector('.monaco-mouse-cursor-text')
+    const usercode=codeselector?.innerText
     // Extract title - try multiple selectors
     const titleElement = document.querySelector('title') || 
                         document.querySelector('.text-title-large') ||
@@ -214,6 +214,7 @@ export class ProblemDetector {
       message: description || problemStatement,
       problemStatement: problemStatement,
       url: window.location.href,
+      code:usercode,
       timestamp: new Date().toISOString()
     };
     
