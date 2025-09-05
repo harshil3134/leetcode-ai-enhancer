@@ -152,12 +152,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       console.log("📤 Sending problem data back:", result);
       sendResponse({
         success: true,
-        data: result   // <-- send the whole problem data object
+        data: result   
       });
     }).catch(err => {
-      console.error("❌ Error in detector:", err);
+      console.error(" Error in detector:", err);
       sendResponse({ success: false, error: err.message });
     });
-    return true; // keep message channel open for async response
+    return true;
   }
 });

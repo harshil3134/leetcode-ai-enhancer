@@ -14,6 +14,9 @@ from fastapi.responses import JSONResponse
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 import json
 import traceback
+from groq import Groq
+from langchain_groq import ChatGroq
+import os
 
 load_dotenv()
 
@@ -71,57 +74,89 @@ def health_check():
 
 @app.post("/api/explain")
 async def explain_que(request:explainRequest):
-   try:  
-         chat=request.chat
-         problem=request.problem
-         code=request.code
-         print(problem)
-         prompt_text = ("""You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested """)
-         prompt = ChatPromptTemplate([
-         ('system',"""
-         You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested Talk about code only if user asks  
-         {problem}
-         """),
-         MessagesPlaceholder(variable_name='chat_li'),
-         ('human', '{question} code:{code}')
-   ])
-         chat_li=[]
-         # chat_li.append(SystemMessage(content=prompt_text))
-         for msg in chat:
-            if msg['sender']=="ai":
-               chat_li.append(AIMessage(content=msg['text']))
-            elif msg['sender']=="user":
-               chat_li.append(HumanMessage(content=msg['text']))
-         
-         print("chat hist",chat_li)
-         model = ChatGoogleGenerativeAI(
-                  model="gemini-1.5-flash",
-                  temperature=0.3,
-                  max_output_tokens=600,
-                  timeout=60,
-                  max_retries=2,
-         )  
-         resp=model.invoke(chat_li)
-         
-         chain=prompt | model 
-         que=chat_li.pop()
-         question=que.content
-         res=chain.invoke({"problem":problem,
-                           "chat_li":chat_li,
-                           "question":question,
-                           "code":code})
-         print("resp",res)
-         print("resp",res.content)
-         return ExplainResponse(
-               explanation=res.content
+    try:
+        chat = request.chat
+        problem = request.problem
+        code = request.code
+        print(problem)
+        prompt_text = ("""You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested """)
+        prompt = ChatPromptTemplate([
+            ('system',"""
+            You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested Talk about code only if user asks  
+            {problem}
+            """),
+            MessagesPlaceholder(variable_name='chat_li'),
+            ('human', '{question} {code}')
+        ])
+        chat_li = []
+        for msg in chat:
+            if msg['sender'] == "ai":
+                chat_li.append(AIMessage(content=msg['text']))
+            elif msg['sender'] == "user":
+                chat_li.append(HumanMessage(content=msg['text']))
+        print("chat hist", chat_li)
+        # Try LangChain Groq (Llama-3.1-8b-instant)
+        try:
+            model = ChatGroq(
+                model="llama-3.1-8b-instant",
+                api_key=os.getenv("GROQ_API_KEY"),
+                temperature=0.3,
+                max_tokens=600,
+                timeout=60,
+                max_retries=2,
             )
-   except Exception as e:
-      print("An error occurred in /api/explain:", e)
-      traceback.print_exc()
-      return JSONResponse(
-         status_code=500,
-         content={"error": "Failed to generate explanation", "details": str(e)}
-      )
+            print("using groq")
+        except Exception as groq_e:
+            print("Groq failed, falling back to Google Gemini:", groq_e)
+            # Fallback to Google Gemini
+            model = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                temperature=0.3,
+                max_output_tokens=600,
+                timeout=60,
+                max_retries=2,
+            )
+         
+        chain = prompt | model
+        que = chat_li.pop()
+        question = que.content
+        
+        #pre check
+        precheck_prompt=ChatPromptTemplate([
+           ('system',"""You are a strict binary classifier.
+               Task: Decide if answering the user’s question requires analyzing the user’s code.
+               Rules:
+               - Output only `1` if the question asks for debugging, fixing, improving, or explaining code.
+               - Output only `0` if the question is general (e.g., greetings, casual chat, theory, definitions, or anything not directly about the code).
+               Answer format: Return only a single character: `1` or `0`. No explanation.
+               """),
+           ('human','{question}')
+        ])
+        precheck__chain=precheck_prompt| model
+        precheck_result=precheck__chain.invoke({"question":question})
+        needs_code=str(precheck_result.content).strip()
+        print("Does model need code?", needs_code)
+
+        if needs_code == "1":
+             pass
+        else:
+            code = "" 
+        res = chain.invoke({
+            "problem": problem,
+            "chat_li": chat_li,
+            "question": question,
+            "code": code
+         })
+        print("Final resp", res)
+        print("Final resp content", res.content)
+        return ExplainResponse(explanation=res.content)
+    except Exception as e:
+        print("An error occurred in /api/explain:", e)
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Failed to generate explanation", "details": str(e)}
+        )
 
 
 
@@ -182,8 +217,8 @@ Give all level hints for this problem level 1,2,3,4
 
    except Exception as e:
       print("An error occurred:",e)
-   
 
 
 
-      
+
+
