@@ -60,6 +60,7 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem,code }) => {
 
   const sendMessage = async() => {
     if (!inputText.trim()) return;
+console.log('---code---',code);
 
     const newMessage = {
       id: Date.now(),
@@ -317,12 +318,31 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem,code }) => {
 };
 
 const Dashboard = () => {
-  const [hints, setHints] = useState({
+  const [hints, setHints] = useState(() => {
+  const saved = localStorage.getItem('hints');
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      console.error("Err", e);
+    }
+  }
+  return {
     "1": "",
     "2": "",
     "3": "",
     "4": ""
-  });
+  };
+});
+    useEffect(() => {
+    // localStorage.setItem('hints', JSON.stringify(hints));
+  }, [hints]);
+    const [code,setCode]=useState("")
+  const [showDesc, setShowDesc] = useState(false);
+  const [expandedHints, setExpandedHints] = useState({});
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMinimized, setChatMinimized] = useState(false);
+
 useEffect(()=>{
 chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
         chrome?.tabs?.sendMessage(
@@ -343,12 +363,38 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
 
             console.log("📥 Got problem data:", response.data);
             setProblem(response.data.result);
-             console.log("code",response?.data?.result?.code)
-            setCode(response?.data?.result?.code)
+            console.log("code",response?.data?.result?.code)
+            //setCode(response?.data?.result?.code)
           })
         }
       )
 },[])
+
+useEffect(()=>{
+  if(!chatOpen) return;
+  chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
+        chrome?.tabs?.sendMessage(
+          tabs[0].id,
+          { type: "GETUSERCODE" },
+          (response) => {
+            if (chrome?.runtime?.lastError) {
+              console.error("Runtime error:", chrome.runtime.lastError);
+              setError("Could not get data from content script.");
+              return;
+            }
+
+            if (!response || !response.success) {
+              setError("No problem data received.");
+              console.error("Response error:", response);
+              return;
+            }
+            console.log("User code detector:", response.data);
+            setCode(response?.data?.result?.code)
+          })
+        }
+      )
+
+},[chatOpen])
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -357,14 +403,7 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
     difficulty: "",
     description: "",
   });
-  const [code,setCode]=useState("")
-  const [showDesc, setShowDesc] = useState(false);
-  const [expandedHints, setExpandedHints] = useState({});
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMinimized, setChatMinimized] = useState(false);
-  // useEffect(()=>{
-  // print("printing code ",code)
-  // },[code])
+
 
   const toggleHint = (level) => {
     setExpandedHints(prev => ({
@@ -374,7 +413,7 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
   };
 
   const getContent = async () => {
-    fetchHints();
+  
     if (typeof chrome !== 'undefined') {
       chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
         chrome?.tabs?.sendMessage(
@@ -427,6 +466,7 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
       const data = await response.json();
       console.log("data", data);
       setHints(data.hint);
+      localStorage.setItem('hints', JSON.stringify(data.hint));
     } catch (err) {
       setError('Could not fetch hints. Please try again.');
     }
@@ -441,7 +481,19 @@ chrome?.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
       default: return COLORS.neutral;
     }
   };
-
+// useEffect(()=>{
+//  const saved = localStorage.getItem('hints');
+//     if (saved) {
+//       try {
+//         const parsed = JSON.parse(saved);
+//         // Restore Date objects
+//         setHints(parsed)
+//       } catch {
+//         print("Err",e)
+//       }
+//     }
+// },[])
+   
 
   return (
     <div style={{margin:'0px',padding:'0px'}}>

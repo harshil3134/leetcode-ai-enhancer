@@ -269,4 +269,15 @@ export class ProblemDetector {
       })
     );
   }
-}
+
+  fetchCode(){
+      const codeselector=document.querySelector('.monaco-mouse-cursor-text')
+    const usercode=codeselector?.innerText
+
+      const result = {
+      code:usercode,
+      timestamp: new Date().toISOString()
+      }
+      return result;
+    };
+  }

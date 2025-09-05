@@ -37,6 +37,27 @@ async function initializeDetector() {
   }
 }
 
+async function initializeCodeFetcher() {
+  try {
+    // Check if we're on a problem page
+    if (!window.location.pathname.includes('/problems/')) {
+      console.log(' Not on a problem page');
+      return null;
+    }
+
+    console.log('🔍 Starting problem detection...');
+    const detector = new ProblemDetector();
+    
+      const data = detector.fetchCode();
+      console.log("🔄 fetching code:", data);
+      return data;
+    }
+     catch (err) {
+    console.error('❌ Error detecting problem:', err);
+    return null;
+  }
+}
+
 // Single initialization point
 let isInitialized = false;
 
@@ -91,13 +112,9 @@ console.log("📨 Message received in content script:", request);
     console.log("GETDATA Final result:", result);
     sendResponse({ success: true, data: { result} });
   }); 
-
   return true; // Keep channel open
-
   }
   // await sleep(1000);
-  
- 
 })
 
 // Enhanced message listener
@@ -161,3 +178,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 });
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+console.log("📨 Message received in content script:", request);
+  // Wait a bit for page to settle
+  if(request.type=="GETUSERCODE")
+  {
+initializeCodeFetcher().then(result => {
+    console.log("GETUSERCODE Final result:", result);
+    sendResponse({ success: true, data: { result} });
+  }); 
+
+  return true; // Keep channel open
+
+  }
+  // await sleep(1000);
+})
+
+
