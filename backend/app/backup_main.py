@@ -7,7 +7,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from typing import Dict
 from langchain_core.output_parsers import PydanticOutputParser,StrOutputParser
-from langchain.schema.runnable import RunnableBranch, RunnableLambda
 import datetime
 from dotenv import load_dotenv
 from langchain_core.prompts import MessagesPlaceholder
@@ -80,13 +79,22 @@ async def explain_que(request:explainRequest):
         problem = request.problem
         code = request.code
         print(problem)
-        chat_history = []
+        prompt_text = ("""You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested """)
+        prompt = ChatPromptTemplate([
+            ('system',"""
+            You are a helpful coding assistant. For greetings, reply briefly and friendly For coding questions, provide clear explanations Keep responses concise unless detailed help is requested Talk about code only if user asks  
+            {problem}
+            """),
+            MessagesPlaceholder(variable_name='chat_li'),
+            ('human', '{question} {code}')
+        ])
+        chat_li = []
         for msg in chat:
             if msg['sender'] == "ai":
-                chat_history.append(AIMessage(content=msg['text']))
+                chat_li.append(AIMessage(content=msg['text']))
             elif msg['sender'] == "user":
-                chat_history.append(HumanMessage(content=msg['text']))
-        print("chat hist", chat_history)
+                chat_li.append(HumanMessage(content=msg['text']))
+        print("chat hist", chat_li)
         # Try LangChain Groq (Llama-3.1-8b-instant)
         try:
             model = ChatGroq(
@@ -109,31 +117,10 @@ async def explain_que(request:explainRequest):
                 max_retries=2,
             )
          
-
-        que = chat_history.pop()
+        chain = prompt | model
+        que = chat_li.pop()
         question = que.content
         
-        prompt_with_code = ChatPromptTemplate([
-            ('system', """You are a helpful coding assistant. 
-            For greetings, reply briefly and friendly. 
-            For coding questions, provide clear explanations. 
-            Analyze the provided code and give detailed feedback.
-            
-            Problem Context: {problem}"""),
-            MessagesPlaceholder(variable_name='chat_history',optional=True),
-            ('human', 'Question: {question}\n\nCode to analyze:\n{code}')
-        ])
-        
-        prompt_without_code = ChatPromptTemplate([
-            ('system', """You are a helpful coding assistant. 
-            For greetings, reply briefly and friendly. 
-            For coding questions, provide clear explanations. 
-            Keep responses concise unless detailed help is requested.
-            
-            Problem Context: {problem}"""),
-            MessagesPlaceholder(variable_name='chat_history'),
-            ('human', '{question}')
-        ])
         #pre check
         precheck_prompt=ChatPromptTemplate([
            ('system',"""You are a strict binary classifier.
@@ -145,42 +132,24 @@ async def explain_que(request:explainRequest):
                """),
            ('human','{question}')
         ])
-        def process_with_code(inputs):
-            return prompt_with_code.invoke({
-                "problem": inputs["problem"],
-                "chat_history": inputs["chat_history"],
-                "question": inputs["question"],
-                "code": inputs["code"]
-            })
-        
-        def process_without_code(inputs):
-            return prompt_without_code.invoke({
-                "problem": inputs["problem"],
-                "chat_history": inputs["chat_history"],
-                "question": inputs["question"]
-            })
-        
+        precheck__chain=precheck_prompt| model
+        precheck_result=precheck__chain.invoke({"question":question})
+        needs_code=str(precheck_result.content).strip()
+        print("Does model need code?", needs_code)
 
-        def needs_code_check(inputs):
-            precheck_result=(precheck_prompt| model).invoke({"question":inputs['question']})
-            needs_code=str(precheck_result.content).strip()
-            print(f"Pre-check result: '{needs_code}'")
-            return needs_code == "1"
-        
-        branch_chain=RunnableBranch(
-            (needs_code_check,RunnableLambda(process_with_code) | model),
-            RunnableLambda(process_without_code) | model
-        )           
-        inputs={
+        if needs_code == "1":
+             pass
+        else:
+            code = "" 
+        res = chain.invoke({
             "problem": problem,
-            "chat_history": chat_history,
+            "chat_li": chat_li,
             "question": question,
             "code": code
-         }
-        result = branch_chain.invoke(inputs)
-        print("Final resp", result)
-        print("Final resp content", result.content)
-        return ExplainResponse(explanation=result.content)
+         })
+        print("Final resp", res)
+        print("Final resp content", res.content)
+        return ExplainResponse(explanation=res.content)
     except Exception as e:
         print("An error occurred in /api/explain:", e)
         traceback.print_exc()
@@ -248,7 +217,6 @@ Give all level hints for this problem level 1,2,3,4
 
    except Exception as e:
       print("An error occurred:",e)
-
 
 
 
