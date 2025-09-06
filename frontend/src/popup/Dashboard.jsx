@@ -30,27 +30,38 @@ const ChatWindow = ({ isOpen, onClose, onMinimize, problem,code }) => {
     .replace(/\s+/g, ' ')
     .replace(/^\s*$(?:\r\n?|\n)/gm, '')}`
   const defaultMessages = [
-    { id:0,text:`You are a helpful AI assistant`,sender:'system',timestamp:new Date()},
-    { id: 1, text: `Hi! I'm here to help you. What would you like to discuss about this problem?`, sender: 'ai', timestamp: new Date() }
+    { id:0, text:`You are a helpful AI assistant`, sender:'system', timestamp:new Date() },
+    { id:1, text:`Hi! I'm here to help you. What would you like to discuss about this problem?`, sender:'ai', timestamp:new Date() }
   ];
-  const [messages, setMessages] = useState(() => {
+  const [messages, setMessages] = useState(defaultMessages);
+
+  useEffect(() => {
     const saved = localStorage.getItem('leetcode_ai_chat');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        // Restore Date objects
-        return parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
-      } catch {
-        return defaultMessages;
+        const parsedobj = JSON.parse(saved);
+        const parsed = parsedobj.messages;
+        if(parsedobj.problemid === problem.id) {
+          setMessages(parsed.map(m => ({ ...m, timestamp: new Date(m.timestamp) })));
+          return;
+        }
+      } catch (e) {
+        console.error("Err", e);
       }
     }
-    return defaultMessages;
-  });
+    else{
+
+      //setMessages(defaultMessages);
+    }
+  }, [problem.id]);
 
   const [inputText, setInputText] = useState('');
   const [error, setError] = useState('');
   useEffect(() => {
-    localStorage.setItem('leetcode_ai_chat', JSON.stringify(messages));
+    if(messages.length!=2)
+    {
+      localStorage.setItem('leetcode_ai_chat', JSON.stringify({messages:messages,problemid:problem.id}));
+    }
   }, [messages]);
 
   const clearChat = () => {
@@ -318,22 +329,32 @@ console.log('---code---',code);
 };
 
 const Dashboard = () => {
-  const [hints, setHints] = useState(() => {
-  const saved = localStorage.getItem('hints');
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch (e) {
-      console.error("Err", e);
+    const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [problem, setProblem] = useState({
+    id: "",
+    title: "",
+    difficulty: "",
+    description: "",
+  });
+    print("--problem--",problem)
+  const [hints, setHints] = useState({ "1": "", "2": "", "3": "", "4": "" });
+
+  useEffect(() => {
+    if (problem && problem.id) {
+      const saved = localStorage.getItem(`hints-${problem.id}`);
+      if (saved) {
+        try {
+          setHints(JSON.parse(saved));
+        } catch (e) {
+          console.error("Err", e);
+          setHints({ "1": "", "2": "", "3": "", "4": "" });
+        }
+      } else {
+        setHints({ "1": "", "2": "", "3": "", "4": "" });
+      }
     }
-  }
-  return {
-    "1": "",
-    "2": "",
-    "3": "",
-    "4": ""
-  };
-});
+  }, [problem.id]);
     useEffect(() => {
     // localStorage.setItem('hints', JSON.stringify(hints));
   }, [hints]);
@@ -396,13 +417,6 @@ useEffect(()=>{
 
 },[chatOpen])
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [problem, setProblem] = useState({
-    title: "",
-    difficulty: "",
-    description: "",
-  });
 
 
   const toggleHint = (level) => {
@@ -466,7 +480,7 @@ useEffect(()=>{
       const data = await response.json();
       console.log("data", data);
       setHints(data.hint);
-      localStorage.setItem('hints', JSON.stringify(data.hint));
+      localStorage.setItem(`hints-${problem.id}`, JSON.stringify(data.hint));
     } catch (err) {
       setError('Could not fetch hints. Please try again.');
     }
