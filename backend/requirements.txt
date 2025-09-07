@@ -9,12 +9,9 @@ langchain-groq
 langchain-google-genai
 httpx
 sqlalchemy
-pytest
 langchain-core
 langchain-google-genai
 langchain
 python-dotenv
-sqlalchemy
 httpx
-pytest
 psycopg2-binary
