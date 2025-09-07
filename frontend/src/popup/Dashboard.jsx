@@ -84,7 +84,8 @@ console.log('---code---',code);
     setMessages(prev => [...prev, newMessage]);
      try {
       let textadd=""
-      const response = await fetch('http://localhost:8000/api/explain', {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  const response = await fetch(`${apiUrl}/api/explain`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -462,7 +463,8 @@ useEffect(()=>{
     setError('');
     
     try {
-      const response = await fetch('http://localhost:8000/api/hint', {
+  const apiUrl = import.meta.env.VITE_API_URL;
+  const response = await fetch(`${apiUrl}/api/hint`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
